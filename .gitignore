@@ -1,0 +1,8 @@
+.*.swp
+tags
+
+vendor
+.bundle
+Gemfile.lock
+
+config.rb
