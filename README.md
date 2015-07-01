@@ -56,12 +56,12 @@ $resolver = match_domain(
 基本原理：
 
 * 某些被污染域名可以通过 tcp 查询国外服务器解决。
-* 另外一些用上面的方法也不行，如 *.youtube.com 。可通过 [DNSCrypt](http://dnscrypt.org/) 解决。上面的配置要想正常使用需要在 5343 端口运行 DNSCrypt。
+* 另外一些用上面的方法也不行，如 *.youtube.com 。可通过 [DNSCrypt](http://dnscrypt.org/) 解决。上面的配置要想正常使用需要在 5343 端口运行 DNSCrypt 。
 
 配置文件注意点：
 
 * 配置文件必须创建 `$cache_option` 和 `$resolver` 这两个全局变量。
-* cached 的位置可以是任意的。上面的样例中，静态 ip 的两条规则没有使用 cache。
+* cached 的位置可以是任意的。上面的样例中，静态 ip 的两条规则没有使用 cache 。
 
 ## 运行
 
@@ -89,5 +89,5 @@ env CONFIG=/path/to/config.rb bundle exec ruby shielddns.rb
 
 ## 缓存过期策略
 
-1. ttl: 可选，每条记录最多缓存多长时间
+1. ttl: 可选，每条记录最多缓存多长时间。
 2. max_size: 可选，最多缓存多少条记录，当超过这个数字时，使用 LRU 算法清除缓存。
