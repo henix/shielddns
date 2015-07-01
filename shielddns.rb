@@ -195,7 +195,9 @@ end
 # begin main
 
 require_relative 'duration'
-load(ENV.fetch('CONFIG', './config.rb'))
+configfile = ENV.fetch('CONFIG', './config.rb')
+$logger.info { "config.load: #{configfile}" }
+load(configfile)
 
 require 'pattern-match'
 using PatternMatch
