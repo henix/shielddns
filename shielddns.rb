@@ -3,6 +3,7 @@
 require 'logger'
 require 'resolv'
 require 'socket'
+require 'timeout'
 
 require 'concurrent/collections'
 
@@ -31,9 +32,10 @@ class Utils
 end
 
 class DNSClient
-  def initialize(type, host, port = 53)
+  def initialize(type, host, port = 53, timeout = 10)
     @type = type
     @host, @port = host, port
+    @timeout = timeout
   end
 
   # @param hostname: String
@@ -46,26 +48,37 @@ class DNSClient
       q.add_question(hostname, typeclass)
       q
     }
-    data = case @type
-    when :udp
-      $logger.info { "udp.send: #{Utils.makekey(hostname, typeclass)} #{@host}:#{@port}" }
-      s = UDPSocket.new
-      s.send(req.encode, 0, @host, @port)
-      resp, _ = s.recvfrom(512)
-      s.close
-      resp
-    when :tcp
-      $logger.info { "tcp.send: #{Utils.makekey(hostname, typeclass)} #{@host}:#{@port}" }
-      s = TCPSocket.new(@host, @port)
-      data = req.encode
-      s.send([data.bytesize].pack('n') + data, 0)
-      resp = s.read
-      s.close
-      resp.byteslice(2..-1)
-    else
-      raise ArgumentError.new(@type.inspect)
+    begin
+      data = Timeout.timeout(@timeout) {
+        case @type
+        when :udp
+          $logger.info { "udp.send: #{Utils.makekey(hostname, typeclass)} #{@host}:#{@port}" }
+          s = UDPSocket.new
+          s.send(req.encode, 0, @host, @port)
+          resp, _ = s.recvfrom(512)
+          s.close
+          resp
+        when :tcp
+          $logger.info { "tcp.send: #{Utils.makekey(hostname, typeclass)} #{@host}:#{@port}" }
+          s = TCPSocket.new(@host, @port)
+          data = req.encode
+          s.send([data.bytesize].pack('n') + data, 0)
+          resp = s.read
+          s.close
+          resp.byteslice(2..-1)
+        else
+        end
+      }
+      Message.decode(data)
+    rescue Timeout::Error
+      $logger.warn { "timeouted: #{Utils.makekey(hostname, typeclass)} #{@type}:#{@host}:#{@port}(timeout=#{@timeout})" }
+      Message.new.tap { |r|
+        r.qr = 1
+        r.rd = 1
+        r.rcode = 2
+        r.add_question(hostname, typeclass)
+      }
     end
-    Message.decode(data)
   end
 end
 
@@ -100,9 +113,16 @@ class CachedResolver
 
   def resolv(hostname, typeclass)
     key = Utils.makekey(hostname, typeclass)
-    @cache.get_or_update(key) {
-      @client.resolv(hostname, typeclass)
-    }
+    if @cache.has_key?(key)
+      @cache[key]
+    else
+      v = @client.resolv(hostname, typeclass)
+      if v.rcode == 0 # only cache successful query
+        @cache[key] = v
+      else
+        @cache.fetch(key, v)
+      end
+    end
   end
 end
 
@@ -148,12 +168,12 @@ class StaticIpResolver
   end
 end
 
-def tcp(ip, port = 53)
-  DNSClient.new(:tcp, ip, port)
+def tcp(ip, port = 53, timeout = 10)
+  DNSClient.new(:tcp, ip, port, timeout)
 end
 
-def udp(ip, port = 53)
-  DNSClient.new(:udp, ip, port)
+def udp(ip, port = 53, timeout = 10)
+  DNSClient.new(:udp, ip, port, timeout)
 end
 
 def first_of_multi(*clients)

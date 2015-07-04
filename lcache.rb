@@ -15,22 +15,35 @@ class LCache
     @atime = (@max_size and {} or nil)
   end
 
-  def get_or_update(k)
-    v = @dict[k]
-    if v.nil?
-      v = yield(k)
-      v2 = @dict[k]
-      if v2.nil?
-        @dict[k] = v
-        wrote(k, v)
-        check_size!
-      else
-        v = v2
-        cache_hit(k)
-      end
-    else
+  def has_key?(k)
+    @dict.has_key?(k)
+  end
+
+  def [](k)
+    if @dict.has_key?(k)
       cache_hit(k)
+      @dict[k]
     end
+  end
+
+  def fetch(k, default)
+    if @dict.has_key?(k)
+      cache_hit(k)
+      @dict[k]
+    else
+      default
+    end
+  end
+
+  def []=(k, v)
+    @dict[k] = v
+    wrote(k, v)
+    check_size!
+  end
+
+  def delete(k)
+    v = @dict.delete(k)
+    deleted(k)
     v
   end
 
@@ -44,12 +57,6 @@ class LCache
   end
 
   private
-
-  def delete(k)
-    v = @dict.delete(k)
-    deleted(k)
-    v
-  end
 
   def cache_hit(k)
     if @atime
