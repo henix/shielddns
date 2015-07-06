@@ -1,12 +1,14 @@
 #!/usr/bin/env ruby
 
+Thread.abort_on_exception = true
+
 require 'logger'
 require 'resolv'
 require 'socket'
-require 'timeout'
 
 require 'concurrent/collections'
 
+require_relative 'ioutils'
 require_relative 'lcache'
 require_relative 'regexptrie'
 
@@ -48,30 +50,37 @@ class DNSClient
       q.add_question(hostname, typeclass)
       q
     }
+    addrinfo = Socket.getaddrinfo(@host, nil)
+    socket = Socket.new(Socket.const_get(addrinfo[0][0]), (@type == :tcp and Socket::SOCK_STREAM or Socket::SOCK_DGRAM))
+    if @type == :tcp
+      socket.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1)
+    end
     begin
-      data = Timeout.timeout(@timeout) {
+      IOUtils.connect_with_timeout(socket, Socket.pack_sockaddr_in(@port, addrinfo[0][3]), @timeout)
+      data =
         case @type
         when :udp
           $logger.info { "udp.send: #{Utils.makekey(hostname, typeclass)} #{@host}:#{@port}" }
-          s = UDPSocket.new
-          s.send(req.encode, 0, @host, @port)
-          resp, _ = s.recvfrom(512)
-          s.close
-          resp
+          IOUtils.write_with_timeout(socket, req.encode, @timeout)
+          begin
+            socket.recv_nonblock(512)
+          rescue IO::WaitReadable
+            if IO.select([socket], nil, [socket], @timeout)
+              retry
+            else
+              raise Timeout::Error.new
+            end
+          end
         when :tcp
           $logger.info { "tcp.send: #{Utils.makekey(hostname, typeclass)} #{@host}:#{@port}" }
-          s = TCPSocket.new(@host, @port)
           data = req.encode
-          s.send([data.bytesize].pack('n') + data, 0)
-          resp = s.read
-          s.close
-          resp.byteslice(2..-1)
+          IOUtils.write_with_timeout(socket, [data.bytesize].pack('n') + data, @timeout)
+          IOUtils.read_with_timeout(socket, nil, @timeout).byteslice(2..-1)
         else
         end
-      }
       Message.decode(data)
-    rescue Timeout::Error
-      $logger.warn { "timeouted: #{Utils.makekey(hostname, typeclass)} #{@type}:#{@host}:#{@port}(timeout=#{@timeout})" }
+    rescue Timeout::Error, Errno::ECONNREFUSED => e
+      $logger.warn { "#{e.message}: #{Utils.makekey(hostname, typeclass)} #{@type}:#{@host}:#{@port}(timeout=#{@timeout})" }
       Message.new.tap { |r|
         r.qr = 1
         r.rd = 1
@@ -234,29 +243,20 @@ socket = UDPSocket.new
 socket.bind(host, port)
 $logger.info { "dns.start: #{host}:#{port}" }
 
-exit_handler = proc {
-  closing = true
-  s = UDPSocket.new
-  s.send("", 0, host, port)
-  s.close
-}
-trap(:INT, exit_handler)
-trap(:TERM, exit_handler)
+trap(:INT) { closing = true }
+trap(:TERM) { closing = true }
 
-loop {
-  data, (_, remote_port, _, remote_ip) = socket.recvfrom(512)
-  if closing
-    break
+while not closing
+  if IO.select([socket], nil, [socket], 1)
+    data, (_, remote_port, _, remote_ip) = socket.recvfrom(512)
+    Thread.fork(data, remote_ip, remote_port) { |data, remote_ip, remote_port|
+      req = Message.decode(data)
+      name, typeclass = req.question.first # 一般可以认为只有一个 question
+      $logger.info { "resolv.req: " + Utils.makekey(name.to_s, typeclass) }
+      resp = $resolver.resolv(name.to_s, typeclass)
+      resp.id = req.id
+      socket.send(resp.encode, 0, remote_ip, remote_port) # TODO: socket 能否安全地在多个线程间共享？
+    }
   end
-  Thread.fork(data, remote_ip, remote_port) { |data, remote_ip, remote_port|
-    req = Message.decode(data)
-    name, typeclass = req.question.first # 一般可以认为只有一个 question
-    $logger.info { "resolv.req: " + Utils.makekey(name.to_s, typeclass) }
-    resp = $resolver.resolv(name.to_s, typeclass)
-    resp.id = req.id
-    socket.send(resp.encode, 0, remote_ip, remote_port) # TODO: socket 能否安全地在多个线程间共享？
-  }
-  Thread.pass
-}
-socket.close
+end
 $logger.info { "dns.exit" }
