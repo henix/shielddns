@@ -19,6 +19,10 @@ class LCache
     @dict.has_key?(k)
   end
 
+  def size()
+    @dict.size
+  end
+
   def [](k)
     if @dict.has_key?(k)
       cache_hit(k)

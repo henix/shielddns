@@ -207,9 +207,9 @@ def cached(client)
     Thread.new {
       loop {
         sleep 60
-        $logger.debug { "evict.start" }
+        $logger.debug { "evict.start: size=#{$cache.size}" }
         $cache.evict!
-        $logger.debug { "evict.done" }
+        $logger.debug { "evict.done: size=#{$cache.size}" }
       }
     }
     $cache.add_observer(CacheListener.new)
