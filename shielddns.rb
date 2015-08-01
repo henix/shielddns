@@ -75,7 +75,9 @@ class DNSClient
           $logger.info { "tcp.send: #{Utils.makekey(hostname, typeclass)} #{@host}:#{@port}" }
           data = req.encode
           IOUtils.write_with_timeout(socket, [data.bytesize].pack('n') + data, @timeout)
-          IOUtils.read_with_timeout(socket, nil, @timeout).byteslice(2..-1)
+          t = IOUtils.read_with_timeout(socket, nil, @timeout)
+          raise "Bad tcp resp: #{t}" unless t.bytesize > 2
+          t.byteslice(2..-1)
         else
         end
       Message.decode(data)
