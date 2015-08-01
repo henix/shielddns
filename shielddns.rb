@@ -79,7 +79,7 @@ class DNSClient
         else
         end
       Message.decode(data)
-    rescue Timeout::Error, Errno::ECONNREFUSED => e
+    rescue RuntimeError, SystemCallError => e
       $logger.warn { "#{e.message}: #{Utils.makekey(hostname, typeclass)} #{@type}:#{@host}:#{@port}(timeout=#{@timeout})" }
       Message.new.tap { |r|
         r.qr = 1
@@ -87,6 +87,8 @@ class DNSClient
         r.rcode = 2
         r.add_question(hostname, typeclass)
       }
+    rescue => e
+      raise "#{Utils.makekey(hostname, typeclass)} #{@type}:#{@host}:#{@port}(timeout=#{@timeout}): #{e.message}" + e.backtrace.map{|s|"\n    "+s}.join("")
     end
   end
 end
