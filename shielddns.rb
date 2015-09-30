@@ -113,7 +113,7 @@ class MultiResolver
       end
     }
     data, client = ringbuffer.take
-    $logger.info { "first_of_multi.use: " + client.inspect }
+    $logger.debug { "first_of_multi.use: " + client.inspect }
     data
   end
 end
