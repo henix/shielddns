@@ -235,6 +235,9 @@ load(configfile)
 require 'pattern-match'
 using PatternMatch
 
+# https://stackoverflow.com/questions/9687703/redirect-stdout-and-stderr-in-real-time
+STDOUT.sync = true
+
 host, port = match(ARGV) {
   with(_[]) { ['127.0.0.1', 53] }
   with(_[/[0-9]+/.(p)]) { ['127.0.0.1', p] }
