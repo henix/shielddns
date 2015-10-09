@@ -130,7 +130,7 @@ class CachedResolver
       @cache[key]
     else
       v = @client.resolv(hostname, typeclass)
-      if v.rcode == 0 # only cache successful query
+      if v.rcode == 0 || v.rcode == 3 # 0 => no error, 3 => non-existent domain
         @cache[key] = v
       else
         @cache.fetch(key, v)
