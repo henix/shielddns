@@ -14,6 +14,7 @@ require_relative 'regexptrie'
 
 Message = Resolv::DNS::Message
 Resource = Resolv::DNS::Resource
+Name = Resolv::DNS::Name
 
 $logger = Logger.new(STDOUT)
 $logger.formatter = proc { |severity, datetime, progname, msg|
@@ -175,9 +176,35 @@ class StaticIpResolver
       r.rd = 1
       r.add_question(hostname, typeclass)
       @ips.fetch(typeclass, []).shuffle.each { |ans|
-        r.add_answer(hostname, 30, typeclass.new(ans))
+        r.add_answer(hostname, 60, typeclass.new(ans))
       }
     }
+  end
+end
+
+def A(a) Resource::IN::A.new(a) end
+def CNAME(a) Resource::IN::CNAME.new(Name.create(a)) end
+def TXT(t) Resource::IN::TXT.new(t) end
+
+class StaticTableResolver
+  # @param table: [string, Resource]
+  def initialize(table, next_hop)
+    @table = table
+    @next_hop = next_hop
+  end
+
+  def resolv(hostname, typeclass)
+    ans = @table.find { |t| t[0] == hostname and t[1].class == typeclass }
+    if ans
+      Message.new.tap { |r|
+        r.qr = 1
+        r.rd = 1
+        r.add_question(hostname, typeclass)
+        r.add_answer(hostname, 60, ans[1])
+      }
+    else
+      @next_hop.resolv(hostname, typeclass)
+    end
   end
 end
 
@@ -223,6 +250,10 @@ end
 
 def static_ip(*ips)
   StaticIpResolver.new(*ips)
+end
+
+def static_table(table, next_hop)
+  StaticTableResolver.new(table, next_hop)
 end
 
 # begin main
