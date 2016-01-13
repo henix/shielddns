@@ -20,48 +20,41 @@ bundle install --path vendor/bundle
 
 ```ruby
 $cache_option = {
-  :ttl => 1.hour,
+  :ttl => 1.day,
   :max_size => 1024
 }
+
+google_dns_tcp = first_of_multi(tcp("8.8.8.8"), tcp("8.8.4.4"))
+opendns = first_of_multi(udp("208.67.220.220", 5353), udp("208.67.222.222", 5353))
+
 ext_resolver = cached(match_domain(
-  [[".youtube.com"], udp("127.0.0.1", 5343)],
   [[
-    "twitter.com", ".twitter.com", ".twimg.com", ".twitpic.com",
-    ".facebook.com", ".facebook.net",
-    ".flickr.com",
-    ".dropbox.com",
-    "plus.google.com", ".googlevideo.com", ".appspot.com", ".blogger.com",
-    ".wordpress.com", ".gravatar.com", ".wp.com",
-    ".typekit.com", ".typekit.net",
-    ".greatfire.org",
-    ".ytvpn.com", ".yuntivpn.com",
-    ".zendesk.com",
-    ".wikipedia.org",
-    ".torproject.org",
-    ".archive.org",
-    ".openvpn.net",
-    "docs.oracle.com"
-  ], first_of_multi(tcp("8.8.8.8"), tcp("8.8.4.4"))],
-  ['*', udp("114.114.114.114")]
+    ".youtube.com",
+    ".minghui.org", ".epochtimes.com", ".ntdtv.com",
+    "twitter.com", ".twitter.com",
+    ".facebook.com", ".facebook.net"
+  ], opendns],
+  ['*', google_dns_tcp]
 ))
+
 $resolver = match_domain(
   # 屏蔽广告
-  [["u291014.778669.com", "d3d.3dwwwgame.com", "p.ko499.com", "shadu.baidu.com.shadu110.com", "p.3u5.net", "game.weibo.com", "static.atm.youku.com", "ads.clicksor.com", "focus.inhe.net", "fpcimedia.allyes.com", "pos.baidu.com", "isearch.babylon.com", "c.qiyou.com", "s.ad123m.com", "ads.adk2.com", "syndication.twitter.com", "www.firefox.com.cn", "ad.adtina.com", "cdn.shdsp.net", "cms.gtags.net", "api.miwifi.com"], static_ip("0.0.0.0")],
-  # 如果你有可用的 Google IP ，可修改下面这条规则的 GoogleIp
-  [[".google.com", ".google.com.hk", ".google.co.jp", ".googleusercontent.com", ".ggpht.com", ".gstatic.com", ".googleapis.com", "www.gmail.com", "goo.gl", ".googlecode.com", ".youtube.com", ".ytimg.com", ".chrome.com", ".feedburner.com", ".recaptcha.net", ".blogger.com", ".blogblog.com"], static_ip(GoogleIp)],
+  [["pos.baidu.com", ".miwifi.com",
+    ".crash-analytics.com", ".icloud-analysis.com", ".icloud-diagnostics.com" # XcodeGhost
+  ], static_ip("0.0.0.0")],
   ['*', ext_resolver]
 )
 ```
 
-基本原理：
+基本原理（感谢 fqrouter 的 [翻墙路由器的原理与实现](http://drops.wooyun.org/papers/10177) 一文）：
 
-* 某些被污染域名可以通过 tcp 查询国外服务器解决。
-* 另外一些用上面的方法也不行，如 *.youtube.com 。可通过 [DNSCrypt](http://dnscrypt.org/) 解决。上面的配置要想正常使用需要在 5343 端口运行 DNSCrypt 。
+* DNS 污染可以通过 tcp 查询国外服务器解决。这里首选 Google DNS。
+* 另外一些用上面的方法会被 tcp reset，可通过查询非标准端口（53）的服务器解决。OpenDNS 支持 5353 端口。
 
 配置文件注意点：
 
 * 配置文件必须创建 `$cache_option` 和 `$resolver` 这两个全局变量。
-* cached 的位置可以是任意的。上面的样例中，静态 ip 的两条规则没有使用 cache 。
+* cached 的位置可以是任意的。上面的样例中，静态 ip 的规则没有使用 cache 。
 
 ## 运行
 
@@ -74,8 +67,6 @@ bundle exec ruby shielddns.rb 5353
 bundle exec ruby shielddns.rb 0.0.0.0 5353
 env CONFIG=/path/to/config.rb bundle exec ruby shielddns.rb
 ```
-
-按 Ctrl-C 退出，Cygwin 中需要按两次。
 
 ## 支持的 Resolver 组合子
 
