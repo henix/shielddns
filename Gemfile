@@ -1,3 +1,2 @@
 source 'https://rubygems.org'
-gem 'pattern-match'
-gem 'concurrent-ruby'
+gem 'concurrent-ruby', '= 0.8.0'

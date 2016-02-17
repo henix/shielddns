@@ -263,18 +263,19 @@ configfile = ENV.fetch('CONFIG', './config.rb')
 $logger.info { "config.load: #{configfile}" }
 load(configfile)
 
-require 'pattern-match'
-using PatternMatch
-
 # https://stackoverflow.com/questions/9687703/redirect-stdout-and-stderr-in-real-time
 STDOUT.sync = true
 
-host, port = match(ARGV) {
-  with(_[]) { ['127.0.0.1', 53] }
-  with(_[/[0-9]+/.(p)]) { ['127.0.0.1', p] }
-  with(_[h]) { [h, 53] }
-  with(a) { a }
-}
+host, port =
+  if ARGV.empty?
+    ['127.0.0.1', 53]
+  elsif ARGV.size == 1 && /^[0-9]+$/ =~ ARGV[0]
+    ['127.0.0.1', ARGV[0].to_i]
+  elsif ARGV.size == 1
+    [ARGV[0], 53]
+  else
+    ARGV
+  end
 
 closing = false
 socket = UDPSocket.new
@@ -297,4 +298,5 @@ while not closing
     }
   end
 end
+
 $logger.info { "dns.exit" }
