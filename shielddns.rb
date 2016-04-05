@@ -5,8 +5,7 @@ Thread.abort_on_exception = true
 require 'logger'
 require 'resolv'
 require 'socket'
-
-require 'concurrent/collections'
+require 'thread'
 
 require_relative 'ioutils'
 require_relative 'lcache'
@@ -102,18 +101,14 @@ class MultiResolver
   end
 
   def resolv(hostname, typeclass)
-    ringbuffer = Concurrent::BlockingRingBuffer.new(@clients.size)
+    queue = Queue.new
     @clients.each { |client|
-      if ringbuffer.empty?
-        Thread.new {
-          if ringbuffer.empty?
-            data = client.resolv(hostname, typeclass)
-            ringbuffer.put([data, client])
-          end
-        }
-      end
+      Thread.new {
+        data = client.resolv(hostname, typeclass)
+        queue.push([data, client])
+      }
     }
-    data, client = ringbuffer.take
+    data, client = queue.pop()
     $logger.debug { "first_of_multi.use: " + client.inspect }
     data
   end
