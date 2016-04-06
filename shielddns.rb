@@ -289,19 +289,23 @@ trap(:TERM) { closing = true }
 
 while not closing
   if IO.select([socket], nil, [socket], 1)
-    data, (_, remote_port, _, remote_ip) = socket.recvfrom(512)
-    Thread.fork(data, remote_ip, remote_port) { |data, remote_ip, remote_port|
-      begin
-        req = Message.decode(data)
-        name, typeclass = req.question.first # 一般可以认为只有一个 question
-        $logger.info { "resolv.req: " + Utils.makekey(name.to_s, typeclass) }
-        resp = $resolver.resolv(name.to_s, typeclass)
-        resp.id = req.id
-        socket.send(resp.encode, 0, remote_ip, remote_port) # TODO: socket 能否安全地在多个线程间共享？
-      rescue Resolv::DNS::DecodeError => e
-        $logger.warn { "decode.failed: #{data}" }
-      end
-    }
+    begin
+      data, (_, remote_port, _, remote_ip) = socket.recvfrom(512)
+      Thread.fork(data, remote_ip, remote_port) { |data, remote_ip, remote_port|
+        begin
+          req = Message.decode(data)
+          name, typeclass = req.question.first # 一般可以认为只有一个 question
+          $logger.info { "resolv.req: " + Utils.makekey(name.to_s, typeclass) }
+          resp = $resolver.resolv(name.to_s, typeclass)
+          resp.id = req.id
+          socket.send(resp.encode, 0, remote_ip, remote_port) # TODO: socket 能否安全地在多个线程间共享？
+        rescue Resolv::DNS::DecodeError => e
+          $logger.warn { "decode.failed: #{data}" }
+        end
+      }
+    rescue => e
+      $logger.warn { e.message }
+    end
   end
 end
 
