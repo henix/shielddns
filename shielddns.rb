@@ -196,13 +196,15 @@ class StaticTableResolver
   end
 
   def resolv(hostname, typeclass)
-    ans = @table.find { |t| t[0] == hostname and t[1].class == typeclass }
-    if ans
+    ans = @table.select { |t| t[0] == hostname and t[1].class == typeclass }
+    if not ans.empty?
       Message.new.tap { |r|
         r.qr = 1
         r.rd = 1
         r.add_question(hostname, typeclass)
-        r.add_answer(hostname, 60, ans[1])
+        ans.each { |a|
+          r.add_answer(hostname, 60, a[1])
+        }
       }
     else
       @next_hop.resolv(hostname, typeclass)
