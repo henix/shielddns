@@ -108,7 +108,14 @@ class MultiResolver
         queue.push([data, client])
       }
     }
-    data, client = queue.pop()
+    data = nil
+    client = nil
+    popcount = 0
+    begin
+      data, client = queue.pop()
+      popcount += 1
+      break if popcount >= @clients.size
+    end until data.rcode == 0 || data.rcode == 3
     $logger.debug { "first_of_multi.use: " + client.inspect }
     data
   end
