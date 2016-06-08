@@ -68,6 +68,7 @@ env CONFIG=/path/to/config.rb ruby shielddns.rb
 
 * tcp / udp: 一个上游 tcp / udp DNS 服务器
 * first_of_multi: 同时向多个 resolver 发送请求，使用最先返回的结果
+* try: 依次尝试多个 resolver（如果超时或返回服务器错误）
 * match_domain: 用域名从上往下依次匹配，使用匹配到的第一条所指定的 resolver
 	- 规则可以是一个字符串数组，数组中的每一项，如果以“.”开头，表示匹配域名的后缀
 	- 或者 '*' 表示匹配任意域名

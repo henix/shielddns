@@ -31,6 +31,15 @@ class Utils
     end
     hostname + "|" + v
   end
+
+  def self.servfail(hostname, typeclass)
+    Message.new.tap { |r|
+      r.qr = 1
+      r.rd = 1
+      r.rcode = 2
+      r.add_question(hostname, typeclass)
+    }
+  end
 end
 
 class DNSClient
@@ -83,12 +92,7 @@ class DNSClient
       Message.decode(data)
     rescue RuntimeError, SystemCallError => e
       $logger.warn { "#{e.message}: #{Utils.makekey(hostname, typeclass)} #{@type}:#{@host}:#{@port}(timeout=#{@timeout})" }
-      Message.new.tap { |r|
-        r.qr = 1
-        r.rd = 1
-        r.rcode = 2
-        r.add_question(hostname, typeclass)
-      }
+      Utils.servfail(hostname, typeclass)
     rescue => e
       raise "#{Utils.makekey(hostname, typeclass)} #{@type}:#{@host}:#{@port}(timeout=#{@timeout}): #{e.message}" + e.backtrace.map{|s|"\n    "+s}.join("")
     end
@@ -118,6 +122,23 @@ class MultiResolver
     end until data.rcode == 0 || data.rcode == 3
     $logger.debug { "first_of_multi.use: " + client.inspect }
     data
+  end
+end
+
+# 前面的挂掉则依次尝试后面的
+class TryResolver
+  def initialize(*clients)
+    @clients = clients
+  end
+
+  def resolv(hostname, typeclass)
+    for client in @clients do
+      v = client.resolv(hostname, typeclass)
+      if v.rcode == 0 || v.rcode == 3
+        return v
+      end
+    end
+    Utils.servfail(hostname, typeclass)
   end
 end
 
@@ -222,6 +243,10 @@ end
 
 def first_of_multi(*clients)
   MultiResolver.new(*clients)
+end
+
+def try(*clients)
+  TryResolver.new(*clients)
 end
 
 $cache = nil
