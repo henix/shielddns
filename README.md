@@ -8,10 +8,6 @@
 
 ```bash
 git clone https://github.com/henix/shielddns.git
-gem install bundler
-
-cd shielddns
-bundle install --path vendor/bundle
 ```
 
 ## 配置
@@ -61,11 +57,11 @@ $resolver = match_domain(
 可用如下方法指定绑定地址、端口，以及配置文件路径：
 
 ```bash
-bundle exec ruby shielddns.rb
-bundle exec ruby shielddns.rb 0.0.0.0
-bundle exec ruby shielddns.rb 5353
-bundle exec ruby shielddns.rb 0.0.0.0 5353
-env CONFIG=/path/to/config.rb bundle exec ruby shielddns.rb
+ruby shielddns.rb
+ruby shielddns.rb 0.0.0.0
+ruby shielddns.rb 5353
+ruby shielddns.rb 0.0.0.0 5353
+env CONFIG=/path/to/config.rb ruby shielddns.rb
 ```
 
 ## 支持的 Resolver 组合子
